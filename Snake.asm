@@ -828,13 +828,6 @@
 		chequearColisionObstaculosFinFor:
 
 	jr $ra
-	# Argumentos: -
-	# Retorno: -
-	# Descripcion: Se ejecutan todas las acciones que deben ocurrir cuando se pierde una partida. Se empieza
-	# una nueva partida, volviendo puntajes a cero, etc.
-	perder:
-	
-			# Probablemente la eliminare, ya que es igual a iniciarPartidaDesdeCero
 	
 	# Argumentos: $a0, $a1
 	# Retorno: $v0, $v1
