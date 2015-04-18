@@ -10,6 +10,10 @@
 	mapaAltura:		.word 64	# Altura (Y) del mapa	
 	tiempoDormir:		.word 200	# Milisegundos para cambiar al siguiente cuadro del juego (hilo)
 	
+	# Strings
+	mensajeBienvenida:	.asciiz "\n############################\n############################\n############################\nBienvenido, este juego fue creado por Felipe Vilches Cespedes.\nInstrucciones:\nArriba = w\nAbajo = s\nIzquierda = a\nDerecha = d\nReiniciar partida = q\nCrecer cola = Espacio (crece la cola sin necesidad de comer una comida, usado para debuggear)"
+	.align 2
+	
 	# Variables (Se reserva memoria, pero son inicializadas luego)
 	
 	largoCola:		.space 4	# El largo de la cola de la serpiente. Cuando comienza el juego esta es 0.
@@ -30,10 +34,13 @@
 	###################################################################
 	
 	Intro: 
+		la $a0, mensajeBienvenida
+		li $v0, 4
+		syscall
+		
+		jal animacionIntro		
 	
-		jal animacionIntro
-	
-	Main:		
+	Main:				
 		
 		
 		jal iniciarPartidaDesdeCero		
@@ -484,11 +491,8 @@
 	# Argumentos: $a0, $a1. (ESTAN MALOS, Solo se usa el argumento a1, para generar un 0<=int<=a1)
 	# Retorno: $v0, 
 	# Descripcion: numero al azar entre los argumentos, incluyendolos.
-	numeroAzar:
-			
-			# ESTA FUNCION, ASI COMO ESTA, SOLO RETORNA UN NUMERO ENTRE
-			# 0 Y OTRO NUMERO
-		
+	numeroAzar:			
+
 		li $v0, 42		# syscall 42
 		syscall			# retorna a a0
 		move $v0, $a0		# t2 = primer random number
@@ -521,6 +525,14 @@
 	
 		# Guardar la direccion de retorno
 		move $s0, $ra
+		
+		# Obtener tiempo de la maquina y set seed
+		li $v0, 30		# syscall 30
+		syscall			# obtener tiempo
+		move $a1, $a0		# a1 = tiempo maquina
+		li $v0, 40		# syscall 40 - set seed
+		syscall
+
 		
 		jal setCabezaPosicionInicial
 		jal vaciarColaSerpienteMemoria		
@@ -661,20 +673,35 @@
 	generarObstaculos:		
 		move $s1, $ra		
 		la $t0, obstaculos
-		li $t1, 0		# t1 = 0, i=0
+		li $t1, 0			# t1 = 0, i=0
+		la $t2, cabezaSerpienteX
+		lw $t2, 0($t2)
+		la $t3, cabezaSerpienteY
+		lw $t3, 0($t3)
 
 		generarObstaculosFor:
 			beq $t1, 100, generarObstaculosFinFor
 			
+			# Generar X,Y al azar.
+			
 			li $a0, 0		# rango para numero al azar
 			li $a1, 64			
 			jal numeroAzar
-			sw $v0, 0($t0)
+			move $t4, $v0
 			
 			li $a0, 0		# rango para numero al azar
-			li $a1, 64
-			jal numeroAzar
-			sw $v0, 4($t0)
+			li $a1, 64		
+			jal numeroAzar		
+			move $t5, $v0		
+			
+			seq $t7, $t4, $t2	# t7 = (cabeza.x == obstaculo.x)
+			seq $t8, $t5, $t3	# t8 = (cabeza.y == obstaculo.y)
+			and $t7, $t7, $t8	# t7 = t7 AND t8
+			beq $t7, 1, generarObstaculosFor
+			
+			sw $t4, 0($t0)
+			sw $t5, 4($t0)
+			
 			
 			addi $t0, $t0, 8	# siguiente dato del arreglo			
 			addi $t1, $t1, 1	# i++
