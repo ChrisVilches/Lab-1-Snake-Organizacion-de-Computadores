@@ -734,14 +734,20 @@
 	# Argumentos: -
 	# Retorno: -
 	# Descripcion: Verifica si se come una comida y aumenta el puntaje y crea otra nueva comida.
-	chequearComeComida:
+	chequearComeComida:	
 		move $s3, $ra
+		
+		# Primero se chequea si las X==X de la cabeza serpiente y comida
+		
 		la $t0, comidaX			# t0 = comida.x
 		lw $t0, 0($t0)		
 		la $t1, cabezaSerpienteX	# t1 = cabeza.x
 		lw $t1, 0($t1)
 		beq $t0, $t1, chequearComeComida2		
 		jr $ra
+		
+		# En caso de que se continue ejecutando la funcion
+		# se chequea si las coordenadas Y son iguales
 		
 		chequearComeComida2:
 		la $t2, comidaY			# t2 = comida.y
@@ -778,18 +784,16 @@
 		forColisionConsigoMisma:
 			sge $t3, $t1, $t0			# if (i >= largoCola) {
 			bgtz $t3, finForColisionConsigoMisma	# 	return;
-								# }
-						
-				lw $t4, 0($t2)
-				lw $t5, 4($t2)
-				seq $t8, $t4, $t6		# t8 = (X de elem. cola == X de cabeza)
-				seq $t9, $t5, $t7		# t9 = (Y de elem. cola == Y de cabeza)
-				and $t8, $t8, $t9		# t8 = t8 AND t9
-				bnez $t8, huboColisionConsigoMisma
-							
-				addi $t2, $t2, 8
-		
-			addi $t1, $t1, 1	# i++
+								# }						
+				lw $t4, 0($t2)			# X del elemento i de la cola
+				bne $t4, $t6, forColisionConsigoMismaIncremento
+				
+				lw $t4, 4($t2)			# Y del elemento i de la cola
+				beq $t4, $t7, huboColisionConsigoMisma
+				
+				forColisionConsigoMismaIncremento:					
+				addi $t2, $t2, 8		
+				addi $t1, $t1, 1	# i++
 			j forColisionConsigoMisma
 			
 			huboColisionConsigoMisma:
@@ -811,14 +815,14 @@
 		lw $t3, 0($t3)
 		chequearColisionObstaculosFor:
 			beq $t1, 100, chequearColisionObstaculosFinFor
-			
+						
 			lw $t4, 0($t0)	# X del obstaculo
-			lw $t5, 4($t0)	# Y del obstaculo
-			seq $t6, $t4, $t2 
-			seq $t7, $t5, $t3 
-			and $t6, $t6, $t7
-			bnez $t6, huboColisionObstaculo
+			bne $t4, $t2, chequearColisionObstaculosForIncrementar
+						
+			lw $t4, 4($t0)	# Y del obstaculo
+			beq $t4, $t3, huboColisionObstaculo
 			
+			chequearColisionObstaculosForIncrementar:
 			addi $t0, $t0, 8	# siguiente dato del arreglo			
 			addi $t1, $t1, 1	# i++
 			j chequearColisionObstaculosFor
