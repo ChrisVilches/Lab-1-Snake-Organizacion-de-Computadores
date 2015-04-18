@@ -59,6 +59,11 @@
 				jal pintarTodo
 				jal chequearColisionConsigoMisma
 				bnez $v0,perderPartida
+				
+				la $a0, cabezaSerpienteX
+				lw $a0, 0($a0)
+				la $a1, cabezaSerpienteY
+				lw $a1, 0($a1)
 				jal chequearColisionObstaculos
 				bnez $v0,perderPartida
 			
@@ -476,7 +481,7 @@
 		move $ra, $s7
 		jr $ra
 		
-	# Argumentos: $a0, $a1.
+	# Argumentos: $a0, $a1. (ESTAN MALOS, Solo se usa el argumento a1, para generar un 0<=int<=a1)
 	# Retorno: $v0, 
 	# Descripcion: numero al azar entre los argumentos, incluyendolos.
 	numeroAzar:
@@ -485,7 +490,7 @@
 			# 0 Y OTRO NUMERO
 		
 		li $v0, 42		# syscall 42
-		syscall
+		syscall			# retorna a a0
 		move $v0, $a0		# t2 = primer random number
 		
 		jr $ra
@@ -518,9 +523,9 @@
 		move $s0, $ra
 		
 		jal setCabezaPosicionInicial
-		jal vaciarColaSerpienteMemoria
-		jal aparecerComidaEnLugarNuevo
+		jal vaciarColaSerpienteMemoria		
 		jal generarObstaculos
+		jal aparecerComidaEnLugarNuevo
 		
 		# tecla del teclado = 0x00000000
 		sw $zero, 0xffff0004
@@ -604,29 +609,48 @@
 	# Descripcion: La posicion de la comida cambia a otro lugar
 	aparecerComidaEnLugarNuevo:	
 		move $s2, $ra
-		la $t0, mapaAncho
-		lw $t0, 0($t0)		# t0 = ancho mapa
+		la $s6, mapaAncho
+		lw $s6, 0($s6)		
+		addi $s6, $s6, -1
 		
-		la $t1, mapaAltura
-		lw $t1, 0($t1)		# t1 = alto mapa			
-	
-		move $a1, $t0
-		jal numeroAzar
-		move $t2, $v0		# t2 = primer random number
+		la $s7, mapaAltura
+		lw $s7, 0($s7)		
+		addi $s7, $s7, -1	
 		
-		move $a1, $t1
+		# s6 = ancho - 1
+		# s7 = altura - 1		
+		
+		aparecerComidaEnLugarNuevoGenerarRandom:
+		move $a1, $s6		# preparar argumento para la funcion "azar", a1 = ancho-1
+		jal numeroAzar		
+		move $t3, $v0		# t3 = primer random number
+		
+		move $a1, $s7		# preparar argumento para la funcion "azar", a1 = altura-1
 		jal numeroAzar
-		move $t3, $v0		# t3 = primer random number	
-	
+		move $t4, $v0		# t4 = primer random number	
+					
+					# Argumentos para chequear colision
+		move $a0, $t3		# a0 = numero random X
+		move $a1, $t4		# a1 = numero random Y
+
+		jal chequearColisionObstaculos	# usa t0, t1, a0 a1		# Si la comida colisiona con un obstaculo
+		beqz $v0, aparecerComidaEnLugarNuevoNoColisionaConObstaculo	# repetir busqueda de numero random
+		
+		# Insertar codigo aca en caso de que se haya detectado una colision 
+		# al generar una comida, con un obstaculo
+		# (no hacer nada, ya que el codigo para generar comida
+		# se repetira hasta que no colisione nada)
+		
+		j aparecerComidaEnLugarNuevoGenerarRandom
+		aparecerComidaEnLugarNuevoNoColisionaConObstaculo:
 		# comidaX = random
 		la $t1, comidaX
-		li $t0, 30
-		sw $t2, 0($t1)
+		sw $t3, 0($t1)
 				
 		# comidaY = random
 		la $t1, comidaY
-		li $t0, 30
-		sw $t3, 0($t1)
+		sw $t4, 0($t1)		
+
 		
 		move $ra, $s2			
 		jr $ra
@@ -802,25 +826,23 @@
 		jr $ra
 	
 		
-	# Argumentos: -
+	# Argumentos: a0, a1
 	# Retorno: v0
-	# Descripcion: Retorna verdadero si la serpiente ha tocado un obstaculo.
+	# Descripcion: Retorna verdadero si un objeto de coordenadas a0, a1 ha tocado un obstaculo.
 	chequearColisionObstaculos:
 	
 		la $t0, obstaculos
 		li $t1, 0		# t1 = 0, i=0
-		la $t2, cabezaSerpienteX
-		lw $t2, 0($t2)
-		la $t3, cabezaSerpienteY
-		lw $t3, 0($t3)
+		li $v0, 0		# no hay colision, retorno default
+
 		chequearColisionObstaculosFor:
 			beq $t1, 100, chequearColisionObstaculosFinFor
 						
 			lw $t4, 0($t0)	# X del obstaculo
-			bne $t4, $t2, chequearColisionObstaculosForIncrementar
+			bne $t4, $a0, chequearColisionObstaculosForIncrementar
 						
 			lw $t4, 4($t0)	# Y del obstaculo
-			beq $t4, $t3, huboColisionObstaculo
+			beq $t4, $a1, huboColisionObstaculo
 			
 			chequearColisionObstaculosForIncrementar:
 			addi $t0, $t0, 8	# siguiente dato del arreglo			
