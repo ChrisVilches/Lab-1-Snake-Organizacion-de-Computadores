@@ -38,11 +38,9 @@
 		li $v0, 4
 		syscall
 		
-		jal animacionIntro		
+		#jal animacionIntro		
 		
 	Main:				
-		
-		
 		jal iniciarPartidaDesdeCero
 
 		MainJuego:		# Comienza el juego principal	
@@ -458,7 +456,7 @@
 	
 	# Argumentos: -
 	# Retorno: $v0
-	# Descripcion: Retorna el valor alojado en el teclado
+	# Descripcion: Retorna el valor alojado en el teclado CREO QUE ESTA WEA ESTA MAL, NO DEBERIA RETORNAR NADA
 	obtenerTeclado:
 		move $s7, $ra
 		li $t0, 0xffff0004
@@ -491,6 +489,7 @@
 			lw $t3, 0($t3)
 			beqz $t3, obtenerTeclado_FinFuncion	# Si el juego no se ha empezado a mover, no ejecutar lo siguiente
 			jal crecerCola			
+			sw $zero, 0xffff0004			# Ahora el teclado tiene valor NULL
 			j obtenerTeclado_FinFuncion
 			
 		terminarPartida:
@@ -526,7 +525,7 @@
 			li $t1, 1
 			sw $t1, 0($t0)
 		
-		obtenerTeclado_FinFuncion:
+		obtenerTeclado_FinFuncion:		
 		move $ra, $s7
 		jr $ra
 		
