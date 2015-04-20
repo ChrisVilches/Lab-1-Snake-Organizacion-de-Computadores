@@ -7,9 +7,8 @@
 	# Constantes
 
 	mapaAncho:		.word 64	# Ancho (X) del mapa
-	mapaAltura:		.word 64	# Altura (Y) del mapa	
-	tiempoDormir:		.word 200	# Milisegundos para cambiar al siguiente cuadro del juego (hilo)
-	
+	mapaAltura:		.word 54	# Altura (Y) del mapa	
+		
 	# Strings
 	mensajeBienvenida:	.asciiz "\n############################\n############################\n############################\nBienvenido, este juego fue creado por Felipe Vilches Cespedes.\nInstrucciones:\nArriba = w\nAbajo = s\nIzquierda = a\nDerecha = d\nReiniciar partida = q\nCrecer cola = Espacio (crece la cola sin necesidad de comer una comida, usado para debuggear)"
 	.align 2
@@ -17,6 +16,7 @@
 	# Variables (Se reserva memoria, pero son inicializadas luego)
 	
 	largoCola:		.space 4	# El largo de la cola de la serpiente. Cuando comienza el juego esta es 0.
+	largoColaAux:		.space 4	# Para comprobar si la cola ha crecido de un frame a otro.
 	direccion:		.space 4	# Direccion, hacia donde se mueve la serpiente.
 	comidaX:		.space 4	# Posicion X de la comida, dentro de la matriz.
 	comidaY:		.space 4	# Posicion Y de la comida, dentro de la matriz.	
@@ -39,12 +39,12 @@
 		syscall
 		
 		jal animacionIntro		
-	
+		
 	Main:				
 		
 		
-		jal iniciarPartidaDesdeCero		
-		
+		jal iniciarPartidaDesdeCero
+
 		MainJuego:		# Comienza el juego principal	
 		
 			jal obtenerTeclado
@@ -61,9 +61,25 @@
 						
 				jal moverCabezaSerpiente
 				
-				jal chequearComeComida			
+				jal chequearComeComida				
 				
 				jal pintarTodo
+				
+				la $t0, largoCola
+				lw $t0, 0($t0)
+				la $t1, largoColaAux
+				lw $t1, 0($t1)
+				beq $t0, $t1, noActualizarPuntaje
+				
+				jal pintarDigitosPuntaje
+				
+				la $t0, largoCola	# t0 = direccion largoCola
+				lw $t0, 0($t0)		# t0 = largo cola
+				la $t1, largoColaAux	# t1 = direccion largoColaAux
+				sw $t0, 0($t1)		# largoColaAux = largoCola
+				
+				noActualizarPuntaje:
+				
 				jal chequearColisionConsigoMisma
 				bnez $v0,perderPartida
 				
@@ -93,6 +109,32 @@
 	################## DEFINICION DE SUBRUTINAS #######################
 	###################################################################
 	###################################################################
+	
+	# Argumentos: -
+	# Retorno: -
+	# Descripcion: Pinta una barra de color diferente abajo de la pantalla, para indicar que eso no es	
+	# parte del mapa	
+	pintarBarraInferior:
+		la $t0, mapaAncho
+		lw $t0, 0($t0)
+		la $t1, mapaAltura
+		lw $t1, 0($t1)
+		mult $t1, $t0
+		mflo $t0		# t0 = ancho por altura del mapa jugable
+		sll $t3, $t0, 2	
+		la $t1, display
+		add $t1, $t1, $t3
+		li $t2, 0x222222
+		
+		forPintarBarraInferior:
+			beq $t0, 4096, finForPintarBarraInferior	# i == 4096
+			sw $t2, 0($t1)		# color guardado en direccion a pintar
+			addi $t1, $t1, 4	# direccion a pintar
+			addi $t0, $t0, 1	# i++
+			j forPintarBarraInferior
+		finForPintarBarraInferior:
+	
+	jr $ra
 	
 	# Argumentos: -
 	# Retorno: -
@@ -504,7 +546,7 @@
 	# Descripcion: Detiene la ejecucion esperando "tiempoDormir" milisegundos (definida en constantes).
 	dormir:
 		li $v0, 32
-		li $a0, 1000
+		li $a0, 150
 		syscall
 		jr $ra	
 	
@@ -550,6 +592,10 @@
 		la $t0, largoCola
 		sw $zero, 0($t0)
 		
+		# largoColaAux = 0
+		la $t0, largoColaAux
+		sw $zero, 0($t0)
+		
 		# juegoEnMovimiento = 0
 		la $t0, juegoEnMovimiento
 		sw $zero, 0($t0)		
@@ -564,6 +610,12 @@
 		
 		# Pintar todo
 		jal pintarTodo	
+		
+		# Pintar barra inferior
+		jal pintarBarraInferior		
+		
+		# Pintar puntaje		
+		jal pintarDigitosPuntaje		
 		
 		# Obtener nuevamente la direccion de retorno
 		move $ra, $s0
@@ -633,10 +685,12 @@
 		# s7 = altura - 1		
 		
 		aparecerComidaEnLugarNuevoGenerarRandom:
+		li $a0, 0
 		move $a1, $s6		# preparar argumento para la funcion "azar", a1 = ancho-1
 		jal numeroAzar		
 		move $t3, $v0		# t3 = primer random number
 		
+		li $a0, 0
 		move $a1, $s7		# preparar argumento para la funcion "azar", a1 = altura-1
 		jal numeroAzar
 		move $t4, $v0		# t4 = primer random number	
@@ -645,7 +699,7 @@
 		move $a0, $t3		# a0 = numero random X
 		move $a1, $t4		# a1 = numero random Y
 
-		jal chequearColisionObstaculos	# usa t0, t1, a0 a1		# Si la comida colisiona con un obstaculo
+		jal chequearColisionObstaculos	# 				# Si la comida colisiona con un obstaculo
 		beqz $v0, aparecerComidaEnLugarNuevoNoColisionaConObstaculo	# repetir busqueda de numero random
 		
 		# Insertar codigo aca en caso de que se haya detectado una colision 
@@ -685,12 +739,16 @@
 			# Generar X,Y al azar.
 			
 			li $a0, 0		# rango para numero al azar
-			li $a1, 64			
+			la $a1, mapaAncho
+			lw $a1, 0($a1)
+			addi $a1, $a1, -1	
 			jal numeroAzar
 			move $t4, $v0
 			
 			li $a0, 0		# rango para numero al azar
-			li $a1, 64		
+			la $a1, mapaAltura
+			lw $a1, 0($a1)
+			addi $a1, $a1, -1		
 			jal numeroAzar		
 			move $t5, $v0		
 			
@@ -736,7 +794,6 @@
 	# Descripcion: Crea un nuevo elemento para la cola. Este elemento tiene inicialmente la misma posicion
 	# que el elemento anterior a el (otro elemento de la cola, o bien la cabeza).
 	crecerCola:		
-	
 		la $t0, largoCola		# largoCola ++
 		lw $t1, 0($t0)
 		addi $t1, $t1, 1
@@ -779,7 +836,7 @@
 			lw $t1, 0($t1)			# t1 = cabeza.y
 			sw $t1, 0($t0)			# guardar cabeza.y en la posicion Y del nuevo elemento
 			
-		crecerCola_fin:
+		crecerCola_fin:		
 		jr $ra
 	
 	# Argumentos: -
@@ -865,11 +922,11 @@
 		chequearColisionObstaculosFor:
 			beq $t1, 100, chequearColisionObstaculosFinFor
 						
-			lw $t4, 0($t0)	# X del obstaculo
-			bne $t4, $a0, chequearColisionObstaculosForIncrementar
+			lw $t2, 0($t0)	# X del obstaculo
+			bne $t2, $a0, chequearColisionObstaculosForIncrementar
 						
-			lw $t4, 4($t0)	# Y del obstaculo
-			beq $t4, $a1, huboColisionObstaculo
+			lw $t2, 4($t0)	# Y del obstaculo
+			beq $t2, $a1, huboColisionObstaculo
 			
 			chequearColisionObstaculosForIncrementar:
 			addi $t0, $t0, 8	# siguiente dato del arreglo			
@@ -1060,15 +1117,7 @@
 	
 	despintarRegionesRedibujo:
 		move $s0, $ra
-		# desPintar cabeza
 		
-		li $a2, 0x000000	# color para la cabeza
-		la $t3, cabezaSerpienteX
-		lw $a0, 0($t3)		# a0 = cabeza.x
-		
-		la $t4, cabezaSerpienteY
-		lw $a1, 0($t4)		# a1 = cabeza.y		
-		jal pintarCuadro
 		
 		# desPintar comida
 		
@@ -1082,9 +1131,32 @@
 		
 		
 		# desPintar cola serpiente
+		#li $a2, 0x000000
+		la $t3, largoCola
+		lw $t3, 0($t3)			# t3 = largo cola
+		beq $t3, 0, despintarSoloCabeza	# no hacer nada si largo cola = 0
+		addi $t3, $t3, -1		# largo cola -1
+		sll $t3, $t3, 3			# t3 * 8
+		addi $a0, $t3, 0x10040000
+		lw $a1, 4($a0)
+		lw $a0, 0($a0)		
 		li $a2, 0x000000
-		jal pintarColaSerpiente	
+		jal pintarCuadro
+		j finDespintar			# Despintando el ultimo cuadro de la cola
+						# no es necesario despintar la cabeza
 		
+		despintarSoloCabeza:
+		# desPintar cabeza
+		
+		li $a2, 0x000000	# color para la cabeza
+		la $t3, cabezaSerpienteX
+		lw $a0, 0($t3)		# a0 = cabeza.x
+		
+		la $t4, cabezaSerpienteY
+		lw $a1, 0($t4)		# a1 = cabeza.y		
+		jal pintarCuadro
+		
+		finDespintar:
 		move $ra, $s0
 	jr $ra
 	
@@ -1097,10 +1169,7 @@
 		
 		# Obtener la direccion del display
 		la $t0, display		# t0 = direccion del display
-		
-		# Pintar puntaje
-		
-		jal pintarDigitosPuntaje	
+				
 		
 		# Pintar cabeza
 		
@@ -1126,8 +1195,6 @@
 		li $a2, 0xff0000
 		jal pintarColaSerpiente		
 				
-						
-	
 		move $ra, $s1
 	jr $ra
 	
@@ -1162,14 +1229,13 @@
 		
 		# pasar el numero como $a2 a pintarDigito	
 		
-
 		li $a0, 3
-		li $a1, 3
+		li $a1, 56
 		jal pintarDigito
 		
 		move $a2, $t9
 		li $a0, 7
-		li $a1, 3
+		li $a1, 56
 		jal pintarDigito		
 		
 		move $ra, $s2	
@@ -1490,11 +1556,11 @@
 	pintarContenedorNegroDisplayPuntaje:
 		move $s3, $ra
 		li $t5, 3
-		li $t6, 3
-		li $a2, 0x000000
+		li $t6, 56
+		li $a2, 0x222222
 		
 		for_ContainerNegro2:
-		beq $t6, 8, finFor_ContainerNegro2
+		beq $t6, 61, finFor_ContainerNegro2
 		
 		for_ContainerNegro:
 		beq $t5, 10, finFor_ContainerNegro
