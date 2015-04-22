@@ -1,20 +1,25 @@
 #
+#	Usar Tools -> Bitmap Display
+#	Usar Tools -> Keyboard and Display (MMIO) Simulator
 #
+#	Conectar ambos dispositivos haciendo click en "Connect to MIPS"
 #
+#	Configurar Bitmap Display
+#		Unit Width in Pixels: 8
+#		Unit Height in Pixels: 8
+#		Display Width in Pixels: 512
+#		Display Height in Pixels: 512
+#		Base address for display 0x10010000 (static data)
+#	
+#	Teclado
+#		W
+#	A	S	D		Q = terminar partida
+#					espacio = crecer cola (trampa)
 #
-#
-#
-#
-#
-#
-#
-#
-#
-#
+#	Creado por Felipe Vilches Cespedes
 .data
 	
 	display: .word 0:4096		# Dimension 64x64 cuadros en la matriz
-					# Base address for display 0x10010000 (static data)
 					
 	obstaculos: .space 800		# Habran 100 obstaculos en cada mapa (cantidad constante)
 					# (coordenadas X Y son 4 bytes cada uno)
