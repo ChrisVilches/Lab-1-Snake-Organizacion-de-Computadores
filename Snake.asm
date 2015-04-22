@@ -1,13 +1,28 @@
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
 .data
 	
-	display: .word 0:4096		# Dimension 512x512
+	display: .word 0:4096		# Dimension 64x64 cuadros en la matriz
 					# Base address for display 0x10010000 (static data)
-					# Unit width & height = 8	
-	obstaculos: .space 800		# Habran 100 obstaculos en cada mapa. Constante.
+					
+	obstaculos: .space 800		# Habran 100 obstaculos en cada mapa (cantidad constante)
+					# (coordenadas X Y son 4 bytes cada uno)
+					# 8 bytes por obstaculo, y como son 100... 8*100 = 800 bytes de memoria para los obstaculos
 	# Constantes
 
-	mapaAncho:		.word 64	# Ancho (X) del mapa
-	mapaAltura:		.word 54	# Altura (Y) del mapa	
+	mapaAncho:		.word 64	# Ancho (X) del mapa jugable
+	mapaAltura:		.word 54	# Altura (Y) del mapa jugable
 		
 	# Strings
 	mensajeBienvenida:	.asciiz "\n############################\n############################\n############################\nBienvenido, este juego fue creado por Felipe Vilches Cespedes.\nInstrucciones:\nArriba = w\nAbajo = s\nIzquierda = a\nDerecha = d\nReiniciar partida = q\nCrecer cola = Espacio (crece la cola sin necesidad de comer una comida, usado para debuggear)"
@@ -17,7 +32,7 @@
 	
 	largoCola:		.space 4	# El largo de la cola de la serpiente. Cuando comienza el juego esta es 0.
 	largoColaAux:		.space 4	# Para comprobar si la cola ha crecido de un frame a otro.
-	direccion:		.space 4	# Direccion, hacia donde se mueve la serpiente.
+	direccion:		.space 4	# Direccion, hacia donde se mueve la serpiente. (1|2|3|4)
 	comidaX:		.space 4	# Posicion X de la comida, dentro de la matriz.
 	comidaY:		.space 4	# Posicion Y de la comida, dentro de la matriz.	
 	cabezaSerpienteX:	.space 4	# Posicion X de la cabeza de la serpiente.
@@ -34,73 +49,72 @@
 	###################################################################
 	
 	Intro: 
+		# Al iniciar la aplicacion, comienza una pantalla que muestra un mensaje "Snake"
+		# escrito pixel por pixel. Luego de esta pantalla, comienza el juego MAIN
+	
 		la $a0, mensajeBienvenida
 		li $v0, 4
-		syscall
+		syscall		
+		jal animacionIntro		
 		
-		#jal animacionIntro		
-		
-	Main:				
-		jal iniciarPartidaDesdeCero
+	Main:					# "Main" contiene todo el juego principal (mover la serpiente, chequear colisiones, perder, etc).
+			
+				
+		jal iniciarPartidaDesdeCero	# Reinicia todos los valores de la partida
 
-		MainJuego:		# Comienza el juego principal	
+		MainJuego:			# Comienza el loop del juego principal	
 		
-			jal obtenerTeclado
+			jal obtenerTeclado		# Obtiene la tecla que se ha presionado y realiza cambios en el juego.
 
-			la $t0, juegoEnMovimiento	# Chequea si el juego esta en movimiento
+			la $t0, juegoEnMovimiento	# Chequea si el juego esta en movimiento.
 			lw $t0, 0($t0)			
 			bnez $t0, movimientoIniciado	# Si esta en movimiento, saltar a "movimientoIniciado".
-			beqz $t0, MainJuego		# Vuelve a hiloPrincipal, sin que se ejecute el resto del hilo	
+			beqz $t0, MainJuego		# Vuelve a MainJuego, sin que se ejecute el resto
 								
 			movimientoIniciado:
 			
-				jal despintarRegionesRedibujo	
-				jal moverColaSerpiente
-						
-				jal moverCabezaSerpiente
+				jal despintarRegionesRedibujo		# Despinta regiones de redibujo (las que se deben actualizar)
+				jal moverColaSerpiente			# Mueve las posiciones de la cola de la serpiente					
+				jal moverCabezaSerpiente		# Mueve las posiciones de la cabeza de la serpiente			
+				jal chequearComeComida			# Chequea si ha comido alguna comida					
+				jal pintarTodo				# Pintar cabeza, comida y cola de serpiente
 				
-				jal chequearComeComida				
+				la $t0, largoCola			 
+				lw $t0, 0($t0)				# t0 = largo Cola
+				la $t1, largoColaAux			
+				lw $t1, 0($t1)				# t1 = largo Cola auxiliar
+				beq $t0, $t1, noActualizarPuntaje	# si son iguales, no actualiza puntaje
 				
-				jal pintarTodo
+				jal pintarDigitosPuntaje		# Pintar digitos del puntaje (se actualiza el display de puntaje)
 				
-				la $t0, largoCola
-				lw $t0, 0($t0)
-				la $t1, largoColaAux
-				lw $t1, 0($t1)
-				beq $t0, $t1, noActualizarPuntaje
-				
-				jal pintarDigitosPuntaje
-				
-				la $t0, largoCola	# t0 = direccion largoCola
-				lw $t0, 0($t0)		# t0 = largo cola
-				la $t1, largoColaAux	# t1 = direccion largoColaAux
-				sw $t0, 0($t1)		# largoColaAux = largoCola
+				la $t0, largoCola			# t0 = direccion largoCola
+				lw $t0, 0($t0)				# t0 = largo cola
+				la $t1, largoColaAux			# t1 = direccion largoColaAux
+				sw $t0, 0($t1)				# largoColaAux = largoCola
 				
 				noActualizarPuntaje:
 				
-				jal chequearColisionConsigoMisma
-				bnez $v0,perderPartida
+				jal chequearColisionConsigoMisma	# Chequea si la serpiente colisiona consigo misma
+				bnez $v0,perderPartida			# Perder partida en caso de que haya colision consigo misma
 				
-				la $a0, cabezaSerpienteX
-				lw $a0, 0($a0)
+				la $a0, cabezaSerpienteX		# (preparando argumentos para chequear colision con obstaculos)
+				lw $a0, 0($a0)				# a0 = cabeza.x 
 				la $a1, cabezaSerpienteY
-				lw $a1, 0($a1)
-				jal chequearColisionObstaculos
-				bnez $v0,perderPartida
+				lw $a1, 0($a1)				# a1 = cabeza.y
+				jal chequearColisionObstaculos		# Chequea si la serpiente ha colisionado con algun obstaculo
+				bnez $v0,perderPartida			# Perder partida en caso de que haya colisionado con algun obstaculo
 			
-				jal dormir
+				jal dormir				# Pausar ejecucion por algunos milisegundos
 				
-		j MainJuego		
+		j MainJuego						# Volver al ciclo del juego
 		
-		perderPartida:
-			li $a0, 3000
-			jal dormirUsandoOtroValorDeTiempo
-			j Main
+		perderPartida:						# Perder partida
+			li $a0, 3000					# Detener ejecucion del juego por un tiempo mas largo
+			jal dormirUsandoOtroValorDeTiempo		# 
+			j Main						# Volver a main, iniciar partida desde cero
 		
-		# terminar ejecucion
-		li $v0, 10	
-		syscall
-		
+	# Fin del juego principal. Ahora se definen las subrutinas (funciones) que fueron usadas
+	# en este "main".
 		
 	###################################################################
 	###################################################################
@@ -111,7 +125,7 @@
 	# Argumentos: -
 	# Retorno: -
 	# Descripcion: Pinta una barra de color diferente abajo de la pantalla, para indicar que eso no es	
-	# parte del mapa	
+	# parte del mapa jugable
 	pintarBarraInferior:
 		la $t0, mapaAncho
 		lw $t0, 0($t0)
@@ -122,7 +136,7 @@
 		sll $t3, $t0, 2	
 		la $t1, display
 		add $t1, $t1, $t3
-		li $t2, 0x222222
+		li $t2, 0x222222	# t2 = color
 		
 		forPintarBarraInferior:
 			beq $t0, 4096, finForPintarBarraInferior	# i == 4096
@@ -136,327 +150,322 @@
 	
 	# Argumentos: -
 	# Retorno: -
-	# Descripcion: Animacion para la intro
+	# Descripcion: Animacion para la intro, pone el mensaje "Snake" dibujado en el display
 	animacionIntro:
 		move $s0, $ra
 		li $a0, 0xff0000
 		jal pintarFondo	
 		
 		
-	li $a0, 5
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 6
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 7
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 8
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 9
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 12
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 19
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 25
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 31
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 35
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 39
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 40
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 41
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 42
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 43
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 44
-	li $a1, 8
-	jal pintarCuadro
-	li $a0, 4
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 12
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 13
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 19
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 24
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 26
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 31
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 34
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 39
-	li $a1, 9
-	jal pintarCuadro
-	li $a0, 4
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 12
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 14
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 19
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 23
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 27
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 31
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 33
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 39
-	li $a1, 10
-	jal pintarCuadro
-	li $a0, 4
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 12
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 15
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 19
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 22
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 28
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 31
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 32
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 39
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 40
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 41
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 42
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 43
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 44
-	li $a1, 11
-	jal pintarCuadro
-	li $a0, 5
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 6
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 7
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 8
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 12
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 16
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 19
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 22
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 28
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 31
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 33
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 39
-	li $a1, 12
-	jal pintarCuadro
-	li $a0, 9
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 12
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 17
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 19
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 22
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 23
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 24
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 25
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 26
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 27
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 28
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 31
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 34
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 39
-	li $a1, 13
-	jal pintarCuadro
-	li $a0, 9
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 12
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 18
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 19
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 22
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 28
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 31
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 35
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 39
-	li $a1, 14
-	jal pintarCuadro
-	li $a0, 4
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 5
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 6
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 7
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 8
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 12
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 19
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 22
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 28
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 31
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 36
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 39
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 40
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 41
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 42
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 43
-	li $a1, 15
-	jal pintarCuadro
-	li $a0, 44
-	li $a1, 15
-	jal pintarCuadro
-
-
-		#############################################
+		li $a0, 5
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 6
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 7
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 8
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 9
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 12
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 19
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 25
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 31
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 35
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 39
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 40
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 41
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 42
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 43
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 44
+		li $a1, 8
+		jal pintarCuadro
+		li $a0, 4
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 12
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 13
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 19
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 24
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 26
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 31
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 34
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 39
+		li $a1, 9
+		jal pintarCuadro
+		li $a0, 4
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 12
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 14
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 19
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 23
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 27
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 31
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 33
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 39
+		li $a1, 10
+		jal pintarCuadro
+		li $a0, 4
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 12
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 15
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 19
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 22
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 28
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 31
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 32
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 39
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 40
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 41
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 42
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 43
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 44
+		li $a1, 11
+		jal pintarCuadro
+		li $a0, 5
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 6
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 7
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 8
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 12
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 16
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 19
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 22
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 28
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 31
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 33
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 39
+		li $a1, 12
+		jal pintarCuadro
+		li $a0, 9
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 12
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 17
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 19
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 22
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 23
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 24
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 25
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 26
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 27
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 28
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 31
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 34
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 39
+		li $a1, 13
+		jal pintarCuadro
+		li $a0, 9
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 12
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 18
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 19
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 22
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 28
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 31
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 35
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 39
+		li $a1, 14
+		jal pintarCuadro
+		li $a0, 4
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 5
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 6
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 7
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 8
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 12
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 19
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 22
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 28
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 31
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 36
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 39
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 40
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 41
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 42
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 43
+		li $a1, 15
+		jal pintarCuadro
+		li $a0, 44
+		li $a1, 15
+		jal pintarCuadro
 		
 		li $a0, 3000
 		jal dormirUsandoOtroValorDeTiempo
 		move $ra, $s0
-		jr $ra
-	
-	
+	jr $ra
 	
 	# Argumentos: -
-	# Retorno: $v0
-	# Descripcion: Retorna el valor alojado en el teclado CREO QUE ESTA WEA ESTA MAL, NO DEBERIA RETORNAR NADA
+	# Retorno: -
+	# Descripcion: Obtiene el valor que hay en el teclado y realiza los cambios correspondientes en el programa.
 	obtenerTeclado:
 		move $s7, $ra
 		li $t0, 0xffff0004
@@ -529,7 +538,7 @@
 		move $ra, $s7
 		jr $ra
 		
-	# Argumentos: $a0, $a1. (ESTAN MALOS, Solo se usa el argumento a1, para generar un 0<=int<=a1)
+	# Argumentos: $a0, $a1.
 	# Retorno: $v0, 
 	# Descripcion: numero al azar entre los argumentos, incluyendolos.
 	numeroAzar:			
@@ -542,7 +551,7 @@
 	
 	# Argumentos: -
 	# Retorno: - 
-	# Descripcion: Detiene la ejecucion esperando "tiempoDormir" milisegundos (definida en constantes).
+	# Descripcion: Detiene la ejecucion esperando un numero fijo de milisegundos.
 	dormir:
 		li $v0, 32
 		li $a0, 150
@@ -552,7 +561,7 @@
 	# Argumentos: $a0
 	# Retorno: - 
 	# Descripcion: Detiene la ejecucion esperando $a0 milisegundos. Usada en situaciones especiales en donde
-	# se requiere un tiempo distinto al comun.
+	# se requiere un tiempo distinto al usual.
 	dormirUsandoOtroValorDeTiempo:
 		li $v0, 32
 		syscall
@@ -573,8 +582,7 @@
 		move $a1, $a0		# a1 = tiempo maquina
 		li $v0, 40		# syscall 40 - set seed
 		syscall
-
-		
+	
 		jal setCabezaPosicionInicial
 		jal vaciarColaSerpienteMemoria		
 		jal generarObstaculos
@@ -722,7 +730,7 @@
 			
 	# Argumentos: -
 	# Retorno: -
-	# Descripcion: Genera los obstaculos para el nivel
+	# Descripcion: Genera los obstaculos para el nivel. Escribe en memoria las posiciones de cada obstaculo. (no los pinta)
 	generarObstaculos:		
 		move $s1, $ra		
 		la $t0, obstaculos
@@ -769,7 +777,7 @@
 		
 	# Argumentos: a2
 	# Retorno: -
-	# Descripcion: Pinta los obstaculos en el mapa, del color a0
+	# Descripcion: Pinta los obstaculos en el mapa, del color a2
 	pintarObstaculos:		
 		move $s1, $ra		
 		la $t3, obstaculos
@@ -948,9 +956,6 @@
 		
 		move $v0, $a0
 		move $v1, $a1
-				
-		# debe solucionarse el problema para cuando esta por sobre o por debajo de los limites,
-		# por ejemplo, bajo 0, o sobre el margen del mapa
 		
 		la $t0, mapaAncho			# t0 = mapa ancho
 		lw $t0, 0($t0)
@@ -1038,6 +1043,7 @@
 		
 		move $ra, $s0				# recuperar direccion para volver el caller
 		jr $ra
+		
 	# Argumentos: -
 	# Retorno: -
 	# Descripcion: Mueve la cola de la serpiente. El algoritmo usado es, empezar desde el ultimo elemento de la cola (el mas lejano a
@@ -1081,11 +1087,9 @@
 		sw $t0, 0x10040000
 		la $t0, cabezaSerpienteY
 		lw $t0, 0($t0)			# t0 cabeza.y (serpiente)
-		sw $t0, 0x10040004
-		
+		sw $t0, 0x10040004		
 	
 		jr $ra
-
 		
 	# Argumentos: $a0
 	# Retorno: -
@@ -1112,7 +1116,6 @@
 	# Argumentos: -
 	# Retorno: -
 	# Descripcion: Pinta la serpiente, comidas, y puntaje, con el color de fondo, borrando asi solo lo que sea necesario.
-	# (funcion creada en respuesta al inmenso lag producido por repintar todo el escenario)
 	
 	despintarRegionesRedibujo:
 		move $s0, $ra
@@ -1161,7 +1164,8 @@
 	
 	# Argumentos: -
 	# Retorno: -
-	# Descripcion: Pinta en el mapa, la comida y cabeza de la serpiente. (La cola de la serpiente se pinta usando otra funcion.)
+	# Descripcion: Pinta en el mapa, la comida y cabeza de la serpiente.
+	
 	pintarTodo:	
 		move $s1, $ra
 		li $a0, 0x00
@@ -1386,8 +1390,7 @@
 			li $a2, 7
 			jal pintarSegmento
 		
-		finPintarDigito:
-		
+		finPintarDigito:		
 	move $ra, $s3
 	jr $ra
 	
@@ -1532,7 +1535,7 @@
 
 	# Argumentos: $a0, $a1, $a2
 	# Retorno: -
-	# Descripcion: Obtiene un par ordenado X,Y, un color, y dibuja este cuadro en la posicion que debiera
+	# Descripcion: De los argumentos, obtiene un par ordenado X,Y, un color, y dibuja este cuadro en la posicion que debiera
 	# estar para que aparezca bien en el display.
 	pintarCuadro:	
 		la $t0, mapaAncho	# t0 = direccion de mapaAncho
@@ -1551,7 +1554,7 @@
 	
 	# Argumentos: -
 	# Retorno: -
-	# Descripcion: Pinta un rectangulo negro, contenedor del display de puntaje
+	# Descripcion: Pinta un rectangulo el cual contiene el display del puntaje. Esto sirve para borrar el puntaje anterior.
 	pintarContenedorNegroDisplayPuntaje:
 		move $s3, $ra
 		li $t5, 3
