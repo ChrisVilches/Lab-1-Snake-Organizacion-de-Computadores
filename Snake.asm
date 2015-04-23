@@ -1,4 +1,9 @@
 #
+#	En caso de que el juego crashee, es posible que haya que aumentar el valor
+#	de la constante "delayTiempo" (milisegundos) definida en el .data
+#	Aunque siempre esta la posibilidad de que crashee. Modulo del teclado
+#	no funciona correctamente.
+#
 #	Usar Tools -> Bitmap Display
 #	Usar Tools -> Keyboard and Display (MMIO) Simulator
 #
@@ -25,7 +30,8 @@
 					# (coordenadas X Y son 4 bytes cada uno)
 					# 8 bytes por obstaculo, y como son 100... 8*100 = 800 bytes de memoria para los obstaculos
 	# Constantes
-
+	
+	delayTiempo:		.word 250	# Tiempo de delay en el loop del juego
 	mapaAncho:		.word 64	# Ancho (X) del mapa jugable
 	mapaAltura:		.word 54	# Altura (Y) del mapa jugable
 		
@@ -559,7 +565,8 @@
 	# Descripcion: Detiene la ejecucion esperando un numero fijo de milisegundos.
 	dormir:
 		li $v0, 32
-		li $a0, 150
+		la $a0, delayTiempo
+		lw $a0, 0($t0)
 		syscall
 		jr $ra	
 	
